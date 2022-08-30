@@ -1,0 +1,29 @@
+body {
+  background-color: #faf4ed;
+  color: #5e1b05;
+}
+.heading {
+  text-align: center;
+  margin-top: 5%;
+  text-decoration: underline;
+}
+.main-text {
+  white-space: pre-wrap;
+  text-align: center;
+  font-size: 1.8em;
+  font-style: italic;
+  font-family: "Brush Script MT", "Lucida Handwriting", "Times New Roman";
+  border: #b55b1b 2px solid;
+  border-radius: 5px;
+  margin-top: 5%;
+  margin-left: 10%;
+  margin-right: 10%;
+  width: 78%;
+  padding: 1% 1% 1% 1%;
+}
+.author {
+  margin-top: 5%;
+  text-align: right;
+  margin-right: 10%;
+  font-style: italic;
+}
