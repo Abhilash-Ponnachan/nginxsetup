@@ -511,4 +511,99 @@ That long piece of string is the `JWT` and we can validate that it is so by usin
 
 ##### Validating JWT
 
-Now that we have a way to generate signed `JWT` we shall embellish our **reverse-proxy** to enforce "validation" for some requests. So in this case we will validate that if there is request coming to any `/api` paths then it should have valid `JWT` signed by us. 
+Now that we have a way to generate signed `JWT` we shall embellish our **reverse-proxy** to enforce "validation" for some requests. So in this case we will validate that if there is request coming to any `/api/` paths then it should have valid `JWT` signed by us.  To achieve this we need to add a new 'path' (or `loaction`) block in our `conf.d/default.conf`for our **reverse-proxy**.  
+
+Since we want to match all paths beginning with `/api/*` we will use the _directory match pattern_ (I found this article describes with examples the various patterns for `NGINX` `location` directive very well https://www.digitalocean.com/community/tutorials/nginx-location-directive).
+
+The next thing we require to _authenticate_ a request is to be able to intercept it, examine it and then conditionally reject it, or pass it on. In `NGINX` the simplest way to achieve this is using the `auth_request` directive. This module (and directive) is commonly used for _authentication sub requests_, and a lot of details and examples can be found in these documentations (https://docs.nginx.com/nginx/admin-guide/security-controls/configuring-subrequest-authentication/, https://developer.okta.com/blog/2018/08/28/nginx-auth-request, http://nginx.org/en/docs/http/ngx_http_auth_request_module.html).
+
+With the new 'path' (`location`) added for _authentication_, our `default.conf` should look like.
+
+```nginx
+ # import our auth.js file
+ js_import conf.d/auth.js;
+ 
+ server {
+	...
+        
+     # proxy default path to backend
+     location / {
+         proxy_pass  http://172.17.0.2:80;
+     }
+ 
+     # validate /api/ req and proxy
+     location /api/ {
+         auth_request /validate;
+         proxy_pass  http://172.17.0.2:80;
+     }
+ 
+     # internal target for auth validation
+     location /validate {
+       internal;
+       js_content auth.validate;
+     }
+ 
+     # path to generate jwt
+     location /jwt {
+         js_content auth.jwt;
+         # only support POST requests
+         limit_except POST {
+           deny all;
+         }
+     }
+ 
+     ...
+ }
+```
+
+
+
+_Instead of repeating the target of the `proxy_pass` twice (`http://172.17.0.2:80` in this case), there is a way to declare it once using the `upstream` directive and reference that in other places. We shall keep it like this for now to avoid introducing too many directives at once. We can eventually clean it up._
+
+Now we are all set to do the _fun_ stuff and write `njs` code to validate the incoming request to check for signed `JWT`. We do that in our `validate` function within `auth.js`.
+
+```javascript
+async function validate(r){
+  // hardcoded Key for now, we shall move these to secrets later
+  const key = "INSECUREKEY";
+
+  // get Authoriztion value from request header
+  const authHdr = r.headersIn.Authorization;
+  if (authHdr){
+    // should be of the format..
+    // Bearer <base64urlecoded header>.<base64urlecoded payload>.<base64urlecoded signature>
+    let values = authHdr.split(" ");
+    if ((values.length === 2) && (values[0] === 'Bearer')) {
+      const tknParts = values[1].split(".");
+      if ((tknParts.length === 3) && tknParts[0] && tknParts[1] && tknParts[2]) {
+        // create signing key object based on the 'key' specified & algorithm
+        // use 'crypto' object
+        // Note algorithm is 'hardcoded', normally it would be drived/crosschecked with header
+        const signKey = await crypto.subtle.importKey('raw', key, {name: 'HMAC', hash: 'SHA-256'},
+                                                      false, ['verify']);
+        // decode signature from base64url to buffer
+        const signPart = Buffer.from(tknParts[2], 'base64url');
+        // concatenate header & payload with '.'
+        const dataPart = tknParts[0] + '.' + tknParts[1];
+        // verify the signature
+        const valid = await crypto.subtle.verify({name: 'HMAC'}, signKey, signPart, dataPart);
+        //r.return(200, `${signPart}\n${dataPart}\n${valid}\n`); // for DEBUG
+        //return;
+        if (valid){
+          r.return(200, valid);
+          return;
+        }
+        r.return(401, '*** Error, Inavlid JWT token *** !\n');
+        return;
+      }
+      r.return(400, '*** Error, Bearer token is not a JWT token *** !\n');
+      return;
+    }
+    r.return(400, '*** Error, missing Bearer token in Authorizatoin header *** !\n');
+    return;
+  }
+  r.return(401, '*** Error, missing Authorization header *** !\n');
+}
+```
+
+Semantically the code is similar to the `jwt(r)` function. We are creating the _signing (validating) key_ just like before (using the same 'secret key value'), then extracting the 'signature part' from the `JWT` and using the `crypto.subtle.verify()` method to validate that with the 'header & body'. 
