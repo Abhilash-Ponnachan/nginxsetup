@@ -1,4 +1,4 @@
-# Simple NGINX setup with Docker & Kubernetes 
+# Example Project to learn NGINX configuration & customisation using JavaScript module 
 
 ## Objective
 
@@ -8,7 +8,7 @@ We shall be working throughout using the `Docker` `nginx` image, so we wont have
 
 Because we are doing everything using `Docker` some basic knowledge of using running containers is expected.
 
-## Setting up NGINX to run with Docker
+## Run NGINX using Docker
 
 ### Commands 
 ```bash
@@ -79,7 +79,7 @@ Browser or Curl http://localhost:8080
 
 $ cd web/
 
-Modify the HTML contents to make our own web page. We change the `index.html` & add a `style.css` stylesheet.
+Modify the HTML contents to make our own web page. We change the `index.html` & add a `style.css` stylesheet. It is just some static content in `<div>` and some styling, so we wont get into explaining that here. the `web/content` directory should now have.
 ```bash
 $ tree content/
 content/
@@ -132,7 +132,7 @@ In our case we will use the `ngx_http_js_module.so` module to execute some JavaS
 
 This link (https://www.nginx.com/blog/harnessing-power-convenience-of-javascript-for-each-request-with-nginx-javascript-module/) provides a very good introduction to the topic.
 
-To get on with our purpose of study however, let us create a 'path' within the `default server` configuration
+To get on with our purpose of study however, let us create a 'path'(block) within the `default server` configuration
 that accepts a GET request and returns a JSON response (with some details such as headers, env variables etc.).
 
 First load the `ngx_http_js_module.so` in the main `nginx.conf` file (do that right at the beginning of the file).
@@ -515,7 +515,7 @@ Now that we have a way to generate signed `JWT` we shall embellish our **reverse
 
 Since we want to match all paths beginning with `/api/*` we will use the _directory match pattern_ (I found this article describes with examples the various patterns for `NGINX` `location` directive very well https://www.digitalocean.com/community/tutorials/nginx-location-directive).
 
-The next thing we require to _authenticate_ a request is to be able to intercept it, examine it and then conditionally reject it, or pass it on. In `NGINX` the simplest way to achieve this is using the `auth_request` directive. This module (and directive) is commonly used for _authentication sub requests_, and a lot of details and examples can be found in these documentations (https://docs.nginx.com/nginx/admin-guide/security-controls/configuring-subrequest-authentication/, https://developer.okta.com/blog/2018/08/28/nginx-auth-request, http://nginx.org/en/docs/http/ngx_http_auth_request_module.html).
+The next thing we require to _authenticate_ a request is to be able to intercept it, examine it and then conditionally reject it, or pass it on. In `NGINX` the simplest way to achieve this is using the `auth_request` directive. We have setup the target of the `auth_request` to be an `internal` location (subrequest) that just executes some `njs` code (the `auth.validate` function). If the function returns with a `200` response then it is considered success and the control passes on to the next directive (`proxy_pass`), else it fails and returns back to the client with the appropriate error. This module (and directive) is commonly used for _authentication sub requests_, and a lot of details and examples can be found in these documentations (https://docs.nginx.com/nginx/admin-guide/security-controls/configuring-subrequest-authentication/, https://developer.okta.com/blog/2018/08/28/nginx-auth-request, http://nginx.org/en/docs/http/ngx_http_auth_request_module.html).
 
 With the new 'path' (`location`) added for _authentication_, our `default.conf` should look like.
 
@@ -606,4 +606,105 @@ async function validate(r){
 }
 ```
 
-Semantically the code is similar to the `jwt(r)` function. We are creating the _signing (validating) key_ just like before (using the same 'secret key value'), then extracting the 'signature part' from the `JWT` and using the `crypto.subtle.verify()` method to validate that with the 'header & body'. 
+Semantically the code is similar to the `jwt(r)` function. We are creating the _signing (validating) key_ just like before (using the same 'secret key value'), then extracting the 'signature part' from the `JWT` and using the `crypto.subtle.verify()` method to validate that with the 'header & body'. If it is valid then we send a `200` response else we respond accordingly with `40x` errors (_most of the code is error handling_).
+
+We can test this out by using the `/jwt` endpoint of the **reverse-proxy** to generate a token, then use that as `Bearer <token>` in the `Authorization` header to the `/api/hello` URL.
+
+```bash
+$ token=$(curl -X POST -H "Content-type: application/json" -d '{"sub": "Alice"}' http://localhost:9090/jwt)
+# use the $token variable when making request
+$ curl -H "Authorization: Bearer $token" http://localhost:9090/api/hello | jq '.'
+{
+  "Message": "Hello from NGINX njs!",
+  "Method": "GET",
+  "HTTP Version": "1.0",
+  ...
+  "Args": ""
+}
+```
+
+If we mutate the token, or do not pass the token we will get a `40x` error back from the **reverse-proxy**. 
+
+Note also that we have managed to apply this validation only to any `/api` paths, so if we try to access the default page `http://localhost:9090` in a web browser, we should still be able to see the page (_without passing in any tokens_).
+
+With this we have enabled our **reverse-proxy** to be a **frontend** that only allows authenticated requests  (for `/api/`).
+
+##### Modifying Proxied Headers
+
+With a few changes to the `defualt.conf` and a couple of extra lines to the `auth.js` we can go beyond simply validating the request. We can use `JavaScript` logic to construct and pass on specific **headers** to the **upstream** (backend). The first change is in the `auth.js` `validate` function. We add a small section to extract the `sub` claim from the `JWT` payload and return that in the `response-header` (if the `JWT` is valid).
+
+```javascript
+// verify the signature
+const valid = await crypto.subtle.verify({name: 'HMAC'}, signKey, signPart, dataPart);
+if (valid){
+    // try extract subject claim
+    try {
+        let payload = Buffer.from(tknParts[1], 'base64url').toString();
+        payload = JSON.parse(payload);
+        if (payload.sub){
+            r.headersOut['Claims-sub'] = payload.sub;
+        }
+    } catch(err){
+        // ignore if no subject claim
+    }
+    r.return(200, valid);
+    return;
+}
+```
+
+
+
+Next we have to make some changes to the `location /api/`  block in our `default.conf` , so as to be able to access this _response header_ from the `auth_request` (which comes from the `njs` code), and set that as _request header_ to be proxied **upstream**. To achieve this we use two additional directives `auth_request_set` and `proxy_set_header`. The modified section in the configuration will look as below. (_Note: figuring out how to get this to work took a lot of searching and trial-and-error! But it was worth it in the end._)
+
+```nginx
+# validate /api/ req and proxy
+location /api/ {
+    auth_request /validate;
+    # assign njs-response header (Claims-sub) to variable $auth_claim_sub
+    auth_request_set $auth_claim_sub $sent_http_claims_sub;
+    # add that as header to proxy upstream
+    proxy_set_header Auth-sub $auth_claim_sub;
+    # hide Authorization header
+    proxy_set_header Authorization "";
+
+    proxy_pass  http://172.17.0.2:80;
+}
+```
+
+The `auth_request_set` directive access the _header_ (`Claim-sub`) received from the `auth_request` step and assign that to the `$auth_claim_sub` variable. Then we use the `proxy_set_header` directive to add that to the **upstream** request. Also we are hiding the original `Authorization` header by setting it to an empty value.
+
+If we test out our `/api/hello` endpoint with a `Bearer <token>` , we should be able to see that the **upstream** (backend) actually receives **request headers** that have been _intercepted_, _validated_ and _modified_ by our **reverse-proxy**. And we did all that with just the _out-of-the-box_ available modules and directives (and a little bit of `njs` `JavaScript` code). 
+
+```bash
+$ curl -H "Authorization: Bearer $token" http://localhost:9090/api/hello | jq '.'
+{
+  "Message": "Hello from NGINX njs!",
+  "Method": "GET",
+  "HTTP Version": "1.0",
+  "Remote Address": "172.17.0.3",
+  "URI": "/api/hello",
+  "Env": {
+    "HOSTNAME": "eea7e80a0dc1",
+    "HOME": "/root",
+    "PKG_RELEASE": "1~bullseye",
+    "NGINX_VERSION": "1.23.0",
+    "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    "NJS_VERSION": "0.7.5",
+    "PWD": "/"
+  },
+  "Req-Headers": " Auth-sub = Alice Host = 172.17.0.2 Connection = close User-Agent = curl/7.68.0 Accept = */*",
+  "Args": ""
+}
+```
+
+
+
+_Note, that the request the backend application receives does not have `Authorization`, and it has an additional header `Auth-sub` with the value extracted from the `JWT` claim_.
+
+## Deploying to Kubernetes
+
+Finally we are ready to deploy all of what we have done to `Kubernetes`. I'm using a local `Kind` (https://kind.sigs.k8s.io/) cluster, but you can use any `MiniKube` or `DockerDesktop` or any other option, it does not really matter. Our `Deployment` is pretty standard. Once done it will look like.
+
+> > > Insert Arch image
+
+The 

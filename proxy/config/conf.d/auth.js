@@ -81,7 +81,7 @@ async function validate(r){
             let payload = Buffer.from(tknParts[1], 'base64url').toString();
             payload = JSON.parse(payload);
             if (payload.sub){
-              r.headersOut['Auth-sub-claim'] = payload.sub;
+              r.headersOut['Claims-sub'] = payload.sub;
             }
           } catch(err){
             // ignore if no subject claim
