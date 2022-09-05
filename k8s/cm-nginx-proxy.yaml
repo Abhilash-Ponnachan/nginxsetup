@@ -1,0 +1,8 @@
+apiVersion: v1
+data:
+  JWT_ISSUER: "NGINX-Proxy"
+  JWT_VALIDITY: "600"
+kind: ConfigMap
+metadata:
+  name: cm-nginx-proxy
+  namespace: ns-nginx-app

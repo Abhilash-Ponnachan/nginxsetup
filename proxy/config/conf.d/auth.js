@@ -1,9 +1,21 @@
 async function jwt(r){
   // values we need to generate JWT
-  // hardcode for now, we shall move these to config/secrets later
-  const key = "INSECUREKEY";
-  const validity = 600; // seconds
-  const issuer = "nginx";
+  // get values from ENV variable, else default as hardcoded
+  let key = "INSECUREKEY";
+  let validity = 600; // seconds
+  let issuer = "nginx";
+  const envVar = process.env;
+  if (envVar){
+    if (envVar.JWT_KEY){
+      key = envVar.JWT_KEY;
+    }
+    if (envVar.JWT_VALIDITY){
+      validity = envVar.JWT_VALIDITY;
+    }
+    if (envVar.JWT_ISSUER){
+      issuer = envVar.JWT_ISSUER;
+    }
+  }
 
   // the request must contain valid JSON
   if (r.headersIn['Content-Type'] != 'application/json') {
@@ -52,8 +64,14 @@ async function jwt(r){
 
 
 async function validate(r){
-  // hardcoded Key for now, we shall move these to secrets later
-  const key = "INSECUREKEY";
+  // get values from ENV variable, else default as hardcoded
+  let key = "INSECUREKEY";
+  const envVar = process.env;
+  if (envVar){
+    if (envVar.JWT_KEY){
+      key = envVar.JWT_KEY;
+    }
+  }
 
   // get Authoriztion value from request header
   const authHdr = r.headersIn.Authorization;

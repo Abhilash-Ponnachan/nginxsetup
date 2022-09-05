@@ -1,0 +1,18 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+  name: ing-nginx-app
+  namespace: ns-nginx-app
+spec:
+  rules:
+  - http:
+      paths:
+      - pathType: Prefix
+        path: "/nginxapp(/|$)(.*)"
+        backend:
+          service:
+            name: svc-nginx-proxy
+            port:
+              number: 80

@@ -1,0 +1,7 @@
+apiVersion: v1
+data:
+  JWT_KEY: UFJPWFlTRUNLRVk=
+kind: Secret
+metadata:
+  name: sec-nginx-proxy
+  namespace: ns-nginx-app

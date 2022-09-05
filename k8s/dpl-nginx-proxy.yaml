@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: nginx-proxy
+  name: nginx-proxy
+  namespace: ns-nginx-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nginx-proxy
+  template:
+    metadata:
+      labels:
+        app: nginx-proxy
+    spec:
+      containers:
+      - image: nginx
+        name: nginx
+        env:
+        - name: JWT_KEY
+          valueFrom:
+            secretKeyRef:
+              name: sec-nginx-proxy
+              key: JWT_KEY   
+        - name: JWT_VALIDITY
+          valueFrom:
+            configMapKeyRef:
+              name: cm-nginx-proxy           
+              key: JWT_VALIDITY           
+        - name: JWT_ISSUER
+          valueFrom:
+            configMapKeyRef:
+              name: cm-nginx-proxy           
+              key: JWT_ISSUER           
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - mountPath: "/etc/nginx"
+          name: vol-proxy-config
+      volumes:
+      - name: vol-proxy-config
+        persistentVolumeClaim:
+          claimName: pvc-nginx-proxy-config

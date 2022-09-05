@@ -18,6 +18,9 @@ spec:
       containers:
       - image: nginx
         name: nginx
+        env:
+        - name: TEST_ENV
+          value: "Test env variable!!"
         ports:
         - containerPort: 80
         volumeMounts:
