@@ -2,7 +2,10 @@
 <html>
   <head>
     <title>Welcome to nginx!</title>
-    <link rel="stylesheet" type="text/css" href="style.css">
+    <!-- Use href as direct "style.css" for non K8s Ingress path prefix -->
+    <!-- <link rel="stylesheet" type="text/css" href="style.css"> -->
+    <!-- Use path prefix nginx/style.css for K8s Ingress path rewrite -->
+    <link rel="stylesheet" type="text/css" href="nginxapp/style.css">
   </head>
   <body>
     <h1 class="heading"> The Builders </h1>

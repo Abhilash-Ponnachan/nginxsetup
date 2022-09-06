@@ -6,7 +6,9 @@ An example project to serve as an introduction to learn `NGINX` configuration, i
 
 We shall be working throughout using the `Docker` `nginx` image, so we wont have to install `NGINX` at all. This is meant to be a **beginner level** project for `NGINX` that will get us comfortable with custom configurations, scripting and using their documentation. 
 
-Because we are doing everything using `Docker` some basic knowledge of using running containers is expected.
+Because we are doing everything using `Docker` some basic knowledge of using running containers is expected. For the last part where we deploy all of this to `Kubernetes`, a working knowledge of `Kubernetes` would be required, however that whole section is NOT necessary to understand (and play around) with `NGINX`.
+
+The most important _objective_, though is to **enjoy** the learning process, have some **fun** while we build our confidence in working with this tool. 
 
 ## Run NGINX using Docker
 
@@ -703,8 +705,74 @@ _Note, that the request the backend application receives does not have `Authoriz
 
 ## Deploying to Kubernetes
 
-Finally we are ready to deploy all of what we have done to `Kubernetes`. I'm using a local `Kind` (https://kind.sigs.k8s.io/) cluster, but you can use any `MiniKube` or `DockerDesktop` or any other option, it does not really matter. Our `Deployment` is pretty standard. Once done it will look like.
+Finally we are ready to deploy all of what we have done to `Kubernetes`. I'm using a local `Kind` (https://kind.sigs.k8s.io/) cluster, but you can use `MiniKube` or `DockerDesktop` or any other option, it does not really matter. Our `Deployment` is pretty standard, the only difference might be the configuration we have to do to enable sharing of **host** directory as `PersistentVolume` in the cluster _(for my `Kind` cluster I had to create it with the configuration for **extra mount** as described here https://kind.sigs.k8s.io/docs/user/configuration/#extra-mounts ),_ and the `annotations` for the **Ingress Controller** your cluster uses (_I use an `NGINX Ingress` controller_).
+
+Once we deploy the **manifests** given in the **`K8s`** directory, our `Kubernetes` solution would look like the diagram below. 
 
 > > > Insert Arch image
 
-The 
+Without getting too deep into the `Kubernetes` aspects, we can summarise the components as follows:
+
+- Everything we do will be in the `ns-nginx-app` **Namespace** (_except **PersistentVolumes** which are independent of **namespaces**_).
+
+- We have the following **PersistentVolumes** to load the files (_HTML/CSS content, and `NGINX` configurations we created above_) from the **host** onto the **Pods**. We use the `standard` **StoargeClass** and type as `hostPath`.
+
+  - `pv-nginx-web-content` - points to the **host path** directory where we have our custom **HTML** and **CSS** for the web page.
+  - `pv-nginx-web-config` - points to the **host path** directory where we have our `NGINX` configuration files for the **web-app**.
+  - `pv-nginx-proxy-config` - points to the **host path** directory where we have our `NGINX` configuration files for the **reverse-proxy**.  
+
+- At the backend we have a **Deployment** (`nginx-web`) with two replicas, and `nginx` image, onto which we **mount** the **content PersistentVolume**  (`pv-nginx-web-content`) to the **container path** `/usr/share/nginx/html`, and **configuration PersistentVolume** (`pv-nginx-web-config`) to the **container path** `/etc/nginx`. It publishes the default **port 80**.
+
+- The `nginx-web` **Deployment** is fronted by a **ClusterIP Service** `svc-nginx-web`.
+
+- In front of the **web app** sits our **reverse proxy Deployment** (`nginx-proxy`), and on this we mount the **proxy configuration PersistentVolume** (`pv-nginx-proxy-config`) to the **container path** `/etc/nginx`. In our `default.conf` file for the **reverse proxy** we specify the `upstream` as `svc-nginx-web`, which makes our `nginx-web` **Pods** the backend target to which the `nginx-proxy` **Pods** forward traffic.
+
+- The `nginx-proxy` **Deployment** is exposed by its own **ClusterIP Service** `svc-nginx-proxy`.
+
+- An **Ingress** with the **rule** to forward traffic coming with the path `localhost/nginxapp` to the **Service** `svc-nginx-proxy` makes it available to be accessed from outside the cluster.
+
+  
+
+  That is all there is to the `Kubernetes` **Deployment**. A few things to take note are, the steps to make a **host directory** available as **PersistentVolume** in your cluster setup may differ, also there could be specifics of the **Ingress** controller that require some additional configuration on how cluster-external HTTP requests are processed (_for `NGINX` Ingress we have to use an `annotation` for `nginx.ingress.kubernetes.io/rewrite-target:`_ ). Besides some small specifics, the whole **Deployment** setup is pretty straightforward and the **manifests** (`*.yaml` files in the **`k8s`** directory) is self explanatory.
+
+  To test this out once deployed, we can use the **browser** to hit the **`http://localhost/nginxapp`** URL and we should see our custom web page (with the poem). We can also test out the **API** part as follows.
+
+  ```bash
+  # generate JWT token using the /jwt endpoint, send some subject claim
+  $ curl -X POST -H "Content-type: application/json" -d '{"sub": "Feynman"}' http://localhost/nginxapp/jwt
+  # should get back a JWT token like..
+  eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJGZXlubWFuIiwiaXNzIjoiTkdJTlgtUHJveHkiLCJleHAiOiIxNjYyNDUyMzM4NjAwIn0.uKgmmZWL4UfDAjuSIQ5Ko886J27PoZFi-ydbgWxPfqQ
+  
+  # set that to a variable
+  $ token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJGZXlubWFuIiwiaXNzIjoiTkdJTlgtUHJveHkiLCJleHAiOiIxNjYyNDUyMzM4NjAwIn0.uKgmmZWL4UfDAjuSIQ5Ko886J27PoZFi-ydbgWxPfqQ
+  
+  # make a request to the /api/hello endpoint using the token
+  $ curl -H "Authorization: Bearer $token" http://localhost/nginxapp/api/hello | jq '.'
+  # we should see a response like..
+  {
+    "Message": "Hello from NGINX njs!",
+    "Method": "GET",
+    "HTTP Version": "1.0",
+    "Remote Address": "10.244.0.10",
+    "URI": "/api/hello",
+    "Env": {
+      ...
+      "NGINX_VERSION": "1.23.1",
+      "PWD": "/",
+      "NJS_VERSION": "0.7.6",
+      ...
+    },
+    "Req-Headers": " Auth-sub = Feynman Host = backendwebapp Connection = close X-Request-ID = 8452b2f12bda1007c431c3ba5c718a6a X-Real-IP = 172.18.0.1 X-Forwarded-For = 172.18.0.1 X-Forwarded-Host = localhost X-Forwarded-Port = 80 X-Forwarded-Proto = http X-Forwarded-Scheme = http X-Scheme = http User-Agent = curl/7.68.0 Accept = */*",
+    "Args": ""
+  }
+  # We see our requst is authorised and the sub claim has been extracted and added to req header for backend (Auth-sub=Feynman)
+  ```
+
+  
+
+  ## Conclusion
+
+  That is the end of the sample project walk-through. It has helped me learn quite a bit of `NGINX`  and whet our appetite to learn more. I found the article (https://www.nginx.com/blog/inside-nginx-how-we-designed-for-performance-scale/) to understand some of the internals of the tool.
+
+  
+
