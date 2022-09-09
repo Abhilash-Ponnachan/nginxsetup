@@ -149,7 +149,7 @@ Since **`nginx.conf`** is the _configuration_ file, let us open it up and take a
  }
 ```
 
-There are lots of parameters, directives which we can use to control /configure the `nginx` service with, such as the `user` the service runs as, the number of worker processes, format of the log string (`log-format`) etc. A good place to refer/learn about these sections is the official documentation [[nginx-conf-doc]](#http://nginx.org/en/docs/beginners_guide.html#conf_structure). The relevant part for us in this project is the **`include /etc/nginx/conf.d/*.conf`** declaration. Essentially, importing all the detailed configurations from **`*.conf`** files in the **`/etc/nginx/conf.d`** directory. 
+There are lots of parameters, directives which we can use to control /configure the `nginx` service with, such as the `user` the service runs as, the number of worker processes, format of the log string (`log-format`) etc. A good place to refer/learn about these sections is the official documentation [nginx-conf-doc](#http://nginx.org/en/docs/beginners_guide.html#conf_structure). The relevant part for us in this project is the **`include /etc/nginx/conf.d/*.conf`** declaration. Essentially, importing all the detailed configurations from **`*.conf`** files in the **`/etc/nginx/conf.d`** directory. 
 
 Out of the box, this directory will just contain a **`default.conf`** file, and this is where we will do most of our work (_If we wish to separate out our configuration logic into a different file, that's possible as well_).
 
@@ -179,7 +179,7 @@ server {
  }
 ```
 
-This file defines a `Server` with the `server_name` `localhost` on `port 80`. The `location` directive declares a _block_ that specifies a directory **`/usr/share/nginx/html`**from where the HTML and any other referenced web assets will be served back (when it receives a request at the root path `/`). it also specifies some _error redirection pages.
+This file defines a `Server` with the `server_name` `localhost` on `port 80`. The `location` directive declares a _block_ that specifies a directory **`/usr/share/nginx/html`** from where the HTML and any other referenced web assets will be served back (when it receives a request at the root path `/`). it also specifies some _error redirection pages.
 
 We shall try to create our own web content and replace the default `index.html` with our page. To achieve this with minimal config changes, we can copy the contents of this directory from the container to a path on our host (we'll copy it to `web/content`).
 
