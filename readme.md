@@ -1,107 +1,238 @@
-# Example Project to learn NGINX configuration & customisation using JavaScript module 
+# Sample Project to learn NGINX configuration & JavaScript Module 
 
-## Objective
+### Table of Contents
 
-An example project to serve as an introduction to learn `NGINX` configuration, it's basic capabilities, how to customise it, take advantage of its extensibility features (using `njs` `JavaScript`), and finally deploy it all in `Kubernetes`.
+1. [**Objective**](#objective)
+2. [**Run NGINX using Docker**](#nginx-with-docker)
+3. [**Serve Custom Content**](#custom-content)
+4. [**NGINX JavaScript Module**](#javascript-module)
+5. [**Reverse Proxy (Custom Code)**](#reverse-proxy)
+6. [**Kubernetes Deployment**](#k8s-deploy)
 
-We shall be working throughout using the `Docker` `nginx` image, so we wont have to install `NGINX` at all. This is meant to be a **beginner level** project for `NGINX` that will get us comfortable with custom configurations, scripting and using their documentation. 
+## Objective<a name="objective"></a>
 
-Because we are doing everything using `Docker` some basic knowledge of using running containers is expected. For the last part where we deploy all of this to `Kubernetes`, a working knowledge of `Kubernetes` would be required, however that whole section is NOT necessary to understand (and play around) with `NGINX`.
+A sample project to get familiar with using `NGINX`, going beyond the default configuration. We plan to do the following:
+
+- Run `NGINX` using `Docker`, with the _default configuration_ (making it a **web-server**) and connect to it.
+- Understand the _location_ and _structure_ of the _configurations_.
+- Modify the _content_ and serve up our _custom web page_.
+-  Extend the capability to provide an HTTP API using the `JavaScript` **module**.
+- Configure another `NGINX` instance as a **reverse-proxy** and front our **web-server**.
+- Add custom functionality in the **reverse-proxy** for `JWT` based _authorisation_ (using `JavaScript` module).
+- Deploy all of this into a local `Kubernetes` cluster, and access it via an `Ingress`.
+
+We shall be working throughout using the **`Docker` `nginx`** image, as it is much more convenient and avoids us having to install anything.  Some basic knowledge of **`Docker`** images and running containers would be required.
+
+For the last part where we deploy all of this to **`Kubernetes`**, a working knowledge of **`Kubernetes`** would be required to do that section. However, it is perfectly fine to skip that part, if the intention is just to learn and explore `NGINX`.
 
 The most important _objective_, though is to **enjoy** the learning process, have some **fun** while we build our confidence in working with this tool. 
 
-## Run NGINX using Docker
+## Run NGINX using Docker<a name="nginx-with-docker"></a>
 
-### Commands 
+To get `NGINX` running as a **web-server** with its _default configuration_ is pretty straightforward. Using `Docker` we simply do a `docker run` and specify the **`nginx`** image and expose it on a `localhost` _port_ (the `nginx` service itself run on **port 80** by default, so we can bind it to something like `8080` on the host).
+
 ```bash
-$ docker run --rm --name=my-nginx nginx
+$ docker run --rm --name=my-nginx-web -p 8080:80 nginx
 
-$ docker exec -it my-nginx /bin/sh
+/docker-entrypoint.sh: /docker-entrypoint.d/ is not empty, will attempt to perform configuration
+...
+2022/09/09 10:14:05 [notice] 1#1: start worker process 37
+2022/09/09 10:14:05 [notice] 1#1: start worker process 38
+...
+```
 
-# nginx -V
+Use a web browser to navigate to `http://localhost:8080` and we should see the _default NGINX_ web page =>
+
+<img src="doc/nginx-web-default.png" alt-text="Default NGINX web page" style="border: 2px solid"/>
+
+Next we can `exec` into the `Docker container` and introspect the `NGINX` service running in it (using the `nginx` command).
+
+```bash
+$ docker exec -it my-nginx-web sh
+\# nginx -help
+nginx version: nginx/1.23.0
+Usage: nginx [-?hvVtTq] [-s signal] [-p prefix]
+             [-e filename] [-c filename] [-g directives]
+
+Options:
+  -?,-h         : this help
+  -v            : show version and exit
+  -V            : show version and configure options then exit
+  -t            : test configuration and exit
+  -T            : test configuration, dump it and exit
+  -q            : suppress non-error messages during configuration testing
+  -s signal     : send signal to a master process: stop, quit, reopen, reload
+  -p prefix     : set prefix path (default: /etc/nginx/)
+  -e filename   : set error log file (default: /var/log/nginx/error.log)
+  -c filename   : set configuration file (default: /etc/nginx/nginx.conf)
+  -g directives : set global directives out of configuration file
+```
+
+The `nginx -h` gives us all the options that the command takes and what we can do with it. If we want more details of the _configuration options_ we can the  `-V` option. As it is we see that the _default configuration file is_ **`/etc/nginx/nginx.con`**. For moist of what we do in this this is the most relevant file at the _root_ of everything else we do.
+
+```bash
+\# nginx -V
 nginx version: nginx/1.23.0
 ...
-configure arguments: --prefix=/etc/nginx --sbin-path=/usr/sbin/nginx --modules-path=/usr/lib/nginx/modules --conf-path=/etc/nginx/nginx.conf ...
-
-$ mkdir web
-
-$ docker cp my-nginx:/etc/nginx web/
-
-$ mv web/nginx/ web/config/
-
-$ cd web
-
-$ tree config/
-config/
-├── conf.d
-│   └── default.conf
-├── fastcgi_params
-├── mime.types
-├── modules -> /usr/lib/nginx/modules
-├── nginx.conf
-├── scgi_params
-└── uwsgi_params
-
-$ vim config/nginx.conf
- ... ** Note -> include /etc/nginx/conf.d/*.conf;
-
-$ vim config/conf.d/default.conf
-... ** Note -> 
-	location / {
-            root   /usr/share/nginx/html;
-	    index  index.html index.htm;
-	 }
-
-$ docker cp my-nginx:/usr/share/nginx/html web/
-
-$ mv web/html/ web/content/
+TLS SNI support enabled
+configure arguments: --prefix=/etc/nginx --sbin-path=/usr/sbin/nginx --modules-path=/usr/lib/nginx/modules --conf-path=/etc/nginx/nginx.conf --error-log-path=/var/log/nginx/error.log ...
+# and a whole bunc of configured paths, options, modules...
 ```
 
-Test accessing the webserver with default config
+For what we are about to do the most relevant part is the `--prefix=/etc/nginx`, as that directory contains everything related to _configuration_ and the _modules_. If we look at the contents of that directory, is should look something like.
+
 ```bash
-$ docker run --rm -d --name=my-nginx -p 8080:80 nginx
+\# ls -lh /etc/nginx
+total 28K
+drwxr-xr-x 2 root root 4.0K Sep  9 10:14 conf.d
+-rw-r--r-- 1 root root 1007 Jun 21 14:25 fastcgi_params
+-rw-r--r-- 1 root root 5.3K Jun 21 14:25 mime.types
+lrwxrwxrwx 1 root root   22 Jun 21 16:54 modules -> /usr/lib/nginx/modules
+-rw-r--r-- 1 root root  648 Jun 21 16:54 nginx.conf
+-rw-r--r-- 1 root root  636 Jun 21 14:25 scgi_params
+-rw-r--r-- 1 root root  664 Jun 21 14:25 uwsgi_params
 ```
 
-Browser or Curl http://localhost:8080
-```html
-<html>
-  <head>
-    <title>Welcome to nginx!</title>
-    <style> ... </style>
-  </head>
-  <body>
-    <h1>Welcome to nginx!</h1>
-    <p>If you see this page, the nginx web server is successfully installed and
-    working. Further configuration is required.</p>
-    ...
-  </body>
-</html>
+Let us copy this entire directory from the `Docker container` to our host machine (we'll copy it to `web/config`). We shall then modify the _configuration_ and _content_ as we require and mount it back to that same location in the `container`. This is the _mechanism_ we shall use throughout to achieve customisation.
+
+```bash
+# we keep everything related to the web-server in a directory called web
+$ docker cp my-nginx-web:/etc/nginx/ web/config/
+
+# now we should have a directory like this on our host
+$ tree
+.
+└── web
+    ├── config
+    │   ├── conf.d
+    │   │   ├── apis.js
+    │   │   └── default.conf
+    │   ├── fastcgi_params
+    │   ├── mime.types
+    │   ├── modules -> /usr/lib/nginx/modules
+    │   ├── nginx.conf
+    │   ├── scgi_params
+    │   └── uwsgi_params
 ```
->>> add image
 
-$ cd web/
+Since **`nginx.conf`** is the _configuration_ file, let us open it up and take a look =>
 
-Modify the HTML contents to make our own web page. We change the `index.html` & add a `style.css` stylesheet. It is just some static content in `<div>` and some styling, so we wont get into explaining that here. the `web/content` directory should now have.
+```nginx
+ user  nginx;
+ worker_processes  auto;
+ 
+ error_log  /var/log/nginx/error.log notice;
+ pid        /var/run/nginx.pid;
+ 
+ 
+ events {
+     worker_connections  1024;
+ }
+ 
+ 
+ http {
+     include       /etc/nginx/mime.types;
+     default_type  application/octet-stream;
+ 
+     log_format  main  '$remote_addr - $remote_user [$time_local] "$request" ' ...;
+ 
+     access_log  /var/log/nginx/access.log  main;
+ 
+     sendfile        on;
+     #tcp_nopush     on;
+ 
+     keepalive_timeout  65;
+ 
+     #gzip  on;
+ 
+     include /etc/nginx/conf.d/*.conf;
+ }
+```
+
+There are lots of parameters, directives which we can use to control /configure the `nginx` service with, such as the `user` the service runs as, the number of worker processes, format of the log string (``log-format`) etc. A good place to refer/learn about these sections is the official documentation [[nginx-conf-doc]](#http://nginx.org/en/docs/beginners_guide.html#conf_structure). The relevant part for us in this project is the **`include /etc/nginx/conf.d/*.conf`** declaration. Essentially, importing all the detailed configurations from **`*.conf`** files in the **`/etc/nginx/conf.d`** directory. 
+
+Out of the box, this directory will just contain a **`default.conf`** file, and this is where we will do most of our work (_If we wish to separate out our configuration logic into a different file, that's possible as well_).
+
+```nginx
+server {
+     listen       80;
+     listen  [::]:80;
+     server_name  localhost;
+ 
+     #access_log  /var/log/nginx/host.access.log  main;
+ 
+     # this is what we shall focus on for now***
+     location / {
+         root   /usr/share/nginx/html;
+         index  index.html index.htm;
+     }
+ 
+     #error_page  404              /404.html;
+ 
+     # redirect server error pages to the static page /50x.html
+     error_page   500 502 503 504  /50x.html;
+     location = /50x.html {
+         root   /usr/share/nginx/html;
+     }
+ 
+    # .. commented out sections
+ }
+```
+
+This file defines a `Server` with the `server_name` `localhost` on `port 80`. The `location` directive declares a _block_ that specifies a directory **`/usr/share/nginx/html`**from where the HTML and any other referenced web assets will be served back (when it receives a request at the root path `/`). it also specifies some _error redirection pages.
+
+We shall try to create our own web content and replace the default `index.html` with our page. To achieve this with minimal config changes, we can copy the contents of this directory from the container to a path on our host (we'll copy it to `web/content`).
+
+```bash
+$ docker cp my-nginx-web:/usr/share/nginx/html/ web/content/
+```
+
+Now our **`web`** directory should look like =>
+
+```bash
+$ tree web
+web
+├── config
+│   ├── conf.d
+│   │   └── default.conf
+│   ├── fastcgi_params
+│   ├── mime.types
+│   ├── modules -> /usr/lib/nginx/modules
+│   ├── nginx.conf
+│   ├── scgi_params
+│   └── uwsgi_params
+└── content
+    ├── 50x.html
+    └── index.html
+```
+
+
+
+Now we have copies of the directories and files we need to do our customisation on the _host_, and when we are done we can run the _container_ again mounting these back into it as needed.
+
+We shall modify the HTML contents to make our own web page. I made a simple `index.html` with some static text in a `<div>` and added some styling (`style.css`). The `web/content` directory should now have the following files =>
+
 ```bash
 $ tree content/
 content/
 ├── 50x.html
 ├── index.html
 └── style.css
-
 ```
 
 Now we run `nginx` `Docker` image again but this time we mount our `content` directory as the volume `/usr/share/nginx/html`
 within the container.
 ```bash
-$ docker run --rm -d --name=my-nginx -v $(pwd)/content:/usr/share/nginx/html -p 8080:80 nginx
+$ docker run --rm -d --name=my-nginx-web -v $(pwd)/content:/usr/share/nginx/html -p 8080:80 nginx
 ```
 
-Browser http://localhost:8080
->>> add image
+Now if we access it (`http://localhost:8080`) from the browser, we should get a nice little page with a verse of a famous poem.
 
-Now if we access it from the browser, we should get a nice little page with a verse of a famous poem.
-So we have managed to expose our own custom content as a web page from `Nginx`.
+<img src="doc/nginx-web-custom.png" alt-text="Default NGINX web page" style="border: 2px solid"/>
+
+
+
+So we have managed to expose our own custom content as a web page from `Nginx`. We can now see how to add more dynamic functionality with some `JavaScript` code, taking advantage of `NGINX` extensible modular architecture.
 
 
 ### NGINX JavaScript (njs)
@@ -509,7 +640,7 @@ $ curl -X POST -H 'Content-Type: application/json' http://localhost:9090/jwt -d 
 eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhbGljZSIsInJvbGUiOiJhZG1pbiIsImlzcyI6Im5naW54IiwiZXhwIjoxNjYxOTYzMjI2fQ.-aFKvCWvoMGsGT8b7SNhfFzHs4GmsG1IEeHE5FcDPY8
 ```
 
-That long piece of string is the `JWT` and we can validate that it is so by using some tool (for example https://jwt.io/). 
+That long piece of string is the `JWT` and we can validate that it is so, by using some tool (for example https://jwt.io/). 
 
 ##### Validating JWT
 
@@ -774,5 +905,17 @@ Without getting too deep into the `Kubernetes` aspects, we can summarise the com
 
   That is the end of the sample project walk-through. It has helped me learn quite a bit of `NGINX`  and whet our appetite to learn more. I found the article (https://www.nginx.com/blog/inside-nginx-how-we-designed-for-performance-scale/) to understand some of the internals of the tool.
 
+  
+  
+  ### References
+  
+  <a id="1">[1]</a> `NGINX` configuration documentation - http://nginx.org/en/docs/beginners_guide.html#conf_structure
+  
+  
+  
+   
+  
+  
+  
   
 
