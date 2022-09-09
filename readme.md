@@ -76,7 +76,7 @@ nginx version: nginx/1.23.0
 ...
 TLS SNI support enabled
 configure arguments: --prefix=/etc/nginx --sbin-path=/usr/sbin/nginx --modules-path=/usr/lib/nginx/modules --conf-path=/etc/nginx/nginx.conf --error-log-path=/var/log/nginx/error.log ...
-# and a whole bunc of configured paths, options, modules...
+# and a whole bunch of configured paths, options, modules...
 ```
 
 For what we are about to do the most relevant part is the `--prefix=/etc/nginx`, as that directory contains everything related to _configuration_ and the _modules_. If we look at the contents of that directory, is should look something like.
@@ -149,7 +149,7 @@ Since **`nginx.conf`** is the _configuration_ file, let us open it up and take a
  }
 ```
 
-There are lots of parameters, directives which we can use to control /configure the `nginx` service with, such as the `user` the service runs as, the number of worker processes, format of the log string (``log-format`) etc. A good place to refer/learn about these sections is the official documentation [[nginx-conf-doc]](#http://nginx.org/en/docs/beginners_guide.html#conf_structure). The relevant part for us in this project is the **`include /etc/nginx/conf.d/*.conf`** declaration. Essentially, importing all the detailed configurations from **`*.conf`** files in the **`/etc/nginx/conf.d`** directory. 
+There are lots of parameters, directives which we can use to control /configure the `nginx` service with, such as the `user` the service runs as, the number of worker processes, format of the log string (`log-format`) etc. A good place to refer/learn about these sections is the official documentation [[nginx-conf-doc]](#http://nginx.org/en/docs/beginners_guide.html#conf_structure). The relevant part for us in this project is the **`include /etc/nginx/conf.d/*.conf`** declaration. Essentially, importing all the detailed configurations from **`*.conf`** files in the **`/etc/nginx/conf.d`** directory. 
 
 Out of the box, this directory will just contain a **`default.conf`** file, and this is where we will do most of our work (_If we wish to separate out our configuration logic into a different file, that's possible as well_).
 
@@ -206,9 +206,7 @@ web
     └── index.html
 ```
 
-
-
-Now we have copies of the directories and files we need to do our customisation on the _host_, and when we are done we can run the _container_ again mounting these back into it as needed.
+We have copies of the directories and files we need to do our customisation on the _host_, and when we are done making our changes we can run the _container_ again mounting these back into it as needed.
 
 We shall modify the HTML contents to make our own web page. I made a simple `index.html` with some static text in a `<div>` and added some styling (`style.css`). The `web/content` directory should now have the following files =>
 
@@ -226,7 +224,7 @@ within the container.
 $ docker run --rm -d --name=my-nginx-web -v $(pwd)/content:/usr/share/nginx/html -p 8080:80 nginx
 ```
 
-Now if we access it (`http://localhost:8080`) from the browser, we should get a nice little page with a verse of a famous poem.
+If we access `http://localhost:8080`from the browser now, we should get a nice little page with a verse of a famous poem.
 
 <img src="doc/nginx-web-custom.png" alt-text="Default NGINX web page" style="border: 2px solid"/>
 
