@@ -153,7 +153,7 @@ Since **`nginx.conf`** is the _configuration_ file, let us open it up and take a
  }
 ```
 
-There are lots of parameters, directives which we can use to control /configure the `nginx` service with, such as the `user` the service runs as, the number of worker processes, format of the log string (`log-format`) etc. A good place to refer/learn about these sections is the official documentation [[nginx_conf_structure]](#1). 
+There are lots of parameters, directives which we can use to control /configure the `nginx` service with, such as the `user` the service runs as, the number of worker processes, format of the log string (`log-format`) etc. A good place to refer/learn about these sections is the official documentation [[nginx conf structure]](#1). 
 
 The relevant part for us in this project is the **`include /etc/nginx/conf.d/*.conf`** declaration. Essentially, importing all the detailed configurations from **`*.conf`** files in the **`/etc/nginx/conf.d`** directory. 
 
@@ -238,7 +238,7 @@ We have now managed to expose our own custom content as a web page from `Nginx`.
 
 
 ### NGINX JavaScript (njs)
-The power of `Nginx` comes from its easy extensibility, using **Modules** [[nginx_modules]](#2). When we require a capability provided by some **module**, we can import that into the `nginx.conf` using the `load_module` **directive**, and when the process starts/reloads it will load the module and make its functionalities available. `NGINX` distributions come with some _default_ set of modules, and there are also _third party modules_ which we can download and install.  In extreme cases we can write our _own custom modules_ if required. For this project we shall use what is available by default with `NGINX` `Docker` image.
+The power of `Nginx` comes from its easy extensibility, using **Modules** [[nginx modules]](#2). When we require a capability provided by some **module**, we can import that into the `nginx.conf` using the `load_module` **directive**, and when the process starts/reloads it will load the module and make its functionalities available. `NGINX` distributions come with some _default_ set of modules, and there are also _third party modules_ which we can download and install.  In extreme cases we can write our _own custom modules_ if required. For this project we shall use what is available by default with `NGINX` `Docker` image.
 
 Within the `config` directory we saw a `modules -> /usr/lib/nginx/modules` symlink. 
 
@@ -265,7 +265,7 @@ total 3.6M
 
 In our case we will use the `ngx_http_js_module.so` module to execute some JavaScript when the server receives a Request and form a Response back. Note, however that the `Nginx` JavaScript module is a custom runtime implementation of the ECMAScript standards (unlike Node.js which uses the **V8** Engine). It is also NOT meant to be used as an application server, but more as a **middleware** for validating, modifying requests/responses. 
 
-This link (https://www.nginx.com/blog/harnessing-power-convenience-of-javascript-for-each-request-with-nginx-javascript-module/) provides a very good introduction to the topic.
+This link [[nginx javascript module]](#3) provides a very good introduction to the topic.
 
 To get on with our purpose of study however, let us create a 'path'(block) within the `default server` configuration
 that accepts a GET request and returns a JSON response (with some details such as headers, env variables etc.).
@@ -290,7 +290,7 @@ Next add a 'path (`location`)' section in the `config/conf.f/default.conf`  file
  }
 ```
 
-So our API can be accessed with a GET request to `<origin>/api/hello`. For this to actually do anything, we need to write some `JavaScript` code and import it. Let us add an `apis.js` file in the same (`conf.d`) directory and place our `JavaScript` code int it. The `Nginx njs` module gives us some objects and functions to do various things like interact with the `request`/`response` etc. (documentation for reference https://nginx.org/en/docs/njs/reference.html, excellent collection of examples https://github.com/nginx/njs-examples). Using those resources we can write up our own `njs` code in the `apis.js` file:
+So our API can be accessed with a GET request to `<origin>/api/hello`. For this to actually do anything, we need to write some `JavaScript` code and import it. Let us add an `apis.js` file in the same (`conf.d`) directory and place our `JavaScript` code int it. The `Nginx njs` module gives us some objects and functions to do various things like interact with the `request`/`response` etc. (documentation for reference [[njs reference]](#4), excellent collection of examples [[njs examples]](#5)). Using those resources we can write up our own `njs` code in the `apis.js` file:
 
 ```javascript
   function helloApi(r){
@@ -461,7 +461,7 @@ For the **proxy configuration** we can leave the `nginx.conf` as it is (_even th
 
 The only real change we have done is the `proxy_pass` directive. 
 
-Note we have specified the backend as the _Docker IP_ (`172.17.0.2`) of the container which is running our **NGINX web app** (which we set up above), also note that on the container it run on **port 80** (_default HTTP_), even though we exposed it on the _host_ on **port 8080**. The reason we do this is because both the containers will be on the default `Docker bridge` **Network**, and the _container IP_ on that network is what they can use to do network communication. This is only _temporary_, just to demonstrate the **reverse-proxy** capabilities. When we finally deploy this to `Kubernetes` it will be much simpler (we wont have to deal with IPs). 
+Note we have specified the backend as the _Docker IP_ (`172.17.0.2`) of the container which is running our **NGINX web app** (which we set up above), also note that on the container it run on **port 80** (_default HTTP_), even though we exposed it on the _host_ on **port 8080**. The reason we do this is because both the containers will be on the default `Docker bridge` **Network**, and the _container IP_ on that network is what they can use to do network communication. This is only _temporary_, just to demonstrate the **reverse-proxy** capabilities. When we finally deploy this to `Kubernetes` it will be much simpler (we wont have to deal with `IPs`). 
 
 After this we run another instance of `NGINX` container on **port 9090** and mount this modified configuration as its `/etc/nginx` volume.
 
@@ -469,9 +469,7 @@ After this we run another instance of `NGINX` container on **port 9090** and mou
  $ docker run --rm --name=nginx-proxy -p 9090:80 -v $(pwd)/proxy/config:/etc/nginx nginx
 ```
 
-If we now access the `http://localhost:9090` URL in our browser we should be "proxied" to the actual backend (running on **port 8080**) and see our original page.
-
-> > Insert screen shot
+If we now access the `http://localhost:9090` URL in our browser we should be "proxied" to the actual backend (running on **port 8080**) and see our custom web page.
 
 If we use `curl` command to test the `api/hello` endpoint we should see:
 
@@ -624,7 +622,7 @@ async function jwt(r){
 export default { jwt }
 ```
 
-Whilst there is a non-trivial amount of code here, the steps to generate `JWT` is pretty straight forward and the comments explain it pretty well. I relied heavily on the _reference documentation_ (https://nginx.org/en/docs/njs/reference.html), and the _examples_ (https://github.com/nginx/njs-examples) to get this right. Also keep in mind, that this is just  to make learning experience more fun, the specifics of generating `JWT` is not a necessary requirement to understand `NGINX` configuration, though that knowledge can certainly help with real-world applications, especially when it comes to troubleshooting.
+Whilst there is a non-trivial amount of code here, the steps to generate `JWT` is pretty straight forward and the comments explain it pretty well. I relied heavily on the _reference documentation_ ([[njs reference]](#4)), and the _examples_ ([[njs examples]](#5)) to get this right. Also keep in mind, that this is just  to make learning experience more fun, the specifics of generating `JWT` is not a necessary requirement to understand `NGINX` configuration, though that knowledge can certainly help with real-world applications, especially when it comes to troubleshooting.
 
 Now if we re-run the container (same as before).
 
@@ -648,9 +646,9 @@ That long piece of string is the `JWT` and we can validate that it is so, by usi
 
 Now that we have a way to generate signed `JWT` we shall embellish our **reverse-proxy** to enforce "validation" for some requests. So in this case we will validate that if there is request coming to any `/api/` paths then it should have valid `JWT` signed by us.  To achieve this we need to add a new 'path' (or `loaction`) block in our `conf.d/default.conf`for our **reverse-proxy**.  
 
-Since we want to match all paths beginning with `/api/*` we will use the _directory match pattern_ (I found this article describes with examples the various patterns for `NGINX` `location` directive very well https://www.digitalocean.com/community/tutorials/nginx-location-directive).
+Since we want to match all paths beginning with `/api/*` we will use the _directory match pattern_ (I found this article from `Digita Ocean` describes with examples the various patterns for `NGINX` `location` directive very well [[nginx location directive]](#6)).
 
-The next thing we require to _authenticate_ a request is to be able to intercept it, examine it and then conditionally reject it, or pass it on. In `NGINX` the simplest way to achieve this is using the `auth_request` directive. We have setup the target of the `auth_request` to be an `internal` location (subrequest) that just executes some `njs` code (the `auth.validate` function). If the function returns with a `200` response then it is considered success and the control passes on to the next directive (`proxy_pass`), else it fails and returns back to the client with the appropriate error. This module (and directive) is commonly used for _authentication sub requests_, and a lot of details and examples can be found in these documentations (https://docs.nginx.com/nginx/admin-guide/security-controls/configuring-subrequest-authentication/, https://developer.okta.com/blog/2018/08/28/nginx-auth-request, http://nginx.org/en/docs/http/ngx_http_auth_request_module.html).
+The next thing we require to _authenticate_ a request is to be able to intercept it, examine it and then conditionally reject it, or pass it on. In `NGINX` the simplest way to achieve this is using the `auth_request` directive. We have setup the target of the `auth_request` to be an `internal` location (subrequest) that just executes some `njs` code (the `auth.validate` function). If the function returns with a `200` response then it is considered success and the control passes on to the next directive (`proxy_pass`), else it fails and returns back to the client with the appropriate error. This module (and directive) is commonly used for _authentication sub requests_, and a lot of details and examples can be found in these documentations ([[nginx auth_request]](#7)).
 
 With the new 'path' (`location`) added for _authentication_, our `default.conf` should look like.
 
@@ -838,11 +836,11 @@ _Note, that the request the backend application receives does not have `Authoriz
 
 ## Deploying to Kubernetes
 
-Finally we are ready to deploy all of what we have done to `Kubernetes`. I'm using a local `Kind` (https://kind.sigs.k8s.io/) cluster, but you can use `MiniKube` or `DockerDesktop` or any other option, it does not really matter. Our `Deployment` is pretty standard, the only difference might be the configuration we have to do to enable sharing of **host** directory as `PersistentVolume` in the cluster _(for my `Kind` cluster I had to create it with the configuration for **extra mount** as described here https://kind.sigs.k8s.io/docs/user/configuration/#extra-mounts ),_ and the `annotations` for the **Ingress Controller** your cluster uses (_I use an `NGINX Ingress` controller_).
+Finally we are ready to deploy all of what we have done to `Kubernetes`. I'm using a local `Kind` ([[kind cluster]](#8)) cluster, but you can use `MiniKube` or `DockerDesktop` or any other option, it does not really matter. Our `Deployment` is pretty standard, the only difference might be the configuration we have to do to enable sharing of **host** directory as `PersistentVolume` in the cluster _(for my `Kind` cluster I had to create it with the configuration for **extra mount** as described here [[kind extra mounts]](#9) ),_ and the `annotations` for the **Ingress Controller** your cluster uses (_I use an `NGINX Ingress` controller_).
 
 Once we deploy the **manifests** given in the **`K8s`** directory, our `Kubernetes` solution would look like the diagram below. 
 
-> > > Insert Arch image
+<img src="doc/nginx-app-k8s.png" alt-text="K8s Deployment" style="border: 2px solid"/>
 
 Without getting too deep into the `Kubernetes` aspects, we can summarise the components as follows:
 
@@ -905,21 +903,29 @@ Without getting too deep into the `Kubernetes` aspects, we can summarise the com
 
   ## Conclusion
 
-  That is the end of the sample project walk-through. It has helped me learn quite a bit of `NGINX`  and whet our appetite to learn more. I found the article (https://www.nginx.com/blog/inside-nginx-how-we-designed-for-performance-scale/) to understand some of the internals of the tool.
+  That is the end of the sample project walk-through. It has helped me learn quite a bit of `NGINX`  and whet our appetite to learn more. I found the article ([[nginx internals]](#10)) to understand some of the internals of the tool.
 
   
   
   ### References
   
-  <a id="1">[1]</a> `NGINX` configuration documentation - http://nginx.org/en/docs/beginners_guide.html#conf_structure
+  <a id="1">[nginx conf structure]</a> - http://nginx.org/en/docs/beginners_guide.html#conf_structure
   
-  <a id="2">[2]</a> `NGINX` Modules - http://nginx.org/en/docs/dev/development_guide.html#Modules
+  <a id="2">[nginx modules]</a> - http://nginx.org/en/docs/dev/development_guide.html#Modules
   
+  <a id="3">[nginx javascriptmodule]</a> - https://www.nginx.com/blog/harnessing-power-convenience-of-javascript-for-each-request-with-nginx-javascript-module/
   
+  <a id="4">[njs reference]</a> - https://nginx.org/en/docs/njs/reference.html
   
-   
+  <a id="5">[**njs examples**]</a> - https://github.com/nginx/njs-examples
   
+   <a id="6">[nginx location directive]</a> - https://www.digitalocean.com/community/tutorials/nginx-location-directive
   
+  <a id="7">[nginx auth_request]</a> - https://docs.nginx.com/nginx/admin-guide/security-controls/configuring-subrequest-authentication/, https://developer.okta.com/blog/2018/08/28/nginx-auth-request, http://nginx.org/en/docs/http/ngx_http_auth_request_module.html
   
+  <a id="8">[kind cluster]</a> - https://kind.sigs.k8s.io/
   
+  <a id="9">[kind extra mounts]</a> - https://kind.sigs.k8s.io/docs/user/configuration/#extra-mounts
+  
+  <a id="10">[nginx internals]</a> - https://www.nginx.com/blog/inside-nginx-how-we-designed-for-performance-scale/
 
