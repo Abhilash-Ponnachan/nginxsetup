@@ -1,4 +1,6 @@
-# Sample Project to learn NGINX configuration & JavaScript Module 
+# Sample NGINX Project
+
+### Learn NGINX configuration, and use its JavaScript (`njs`) Module
 
 ### Table of Contents
 
@@ -21,7 +23,7 @@ A sample project to get familiar with using `NGINX`, going beyond the default co
 - Add custom functionality in the **reverse-proxy** for `JWT` based _authorisation_ (using `JavaScript` module).
 - Deploy all of this into a local `Kubernetes` cluster, and access it via an `Ingress`.
 
-We shall be working throughout using the **`Docker` `nginx`** image, as it is much more convenient and avoids us having to install anything.  Some basic knowledge of **`Docker`** images and running containers would be required.
+We shall be working throughout using the **`Docker` `nginx`** image, as it is much more convenient and avoids us having to install anything.  Some basic knowledge of **`Docker`** images and running containers would be required. All the files explained in this `readme` are included in this repository and can be used as it is.
 
 For the last part where we deploy all of this to **`Kubernetes`**, a working knowledge of **`Kubernetes`** would be required to do that section. However, it is perfectly fine to skip that part, if the intention is just to learn and explore `NGINX`.
 
@@ -93,7 +95,7 @@ lrwxrwxrwx 1 root root   22 Jun 21 16:54 modules -> /usr/lib/nginx/modules
 -rw-r--r-- 1 root root  664 Jun 21 14:25 uwsgi_params
 ```
 
-Let us copy this entire directory from the `Docker container` to our host machine (we'll copy it to `web/config`). We shall then modify the _configuration_ and _content_ as we require and mount it back to that same location in the `container`. This is the _mechanism_ we shall use throughout to achieve customisation.
+Let us copy this entire directory from the `Docker container` to our host machine (we'll copy it to a `web/config` directory). We shall then modify the _configuration_ and _content_ as we require and mount it back to that same location in the `container`. This is the _mechanism_ we shall use throughout to achieve customisation.
 
 ```bash
 # we keep everything related to the web-server in a directory called web
@@ -114,6 +116,8 @@ $ tree
     │   ├── scgi_params
     │   └── uwsgi_params
 ```
+
+Note that we shall be using only a couple of those files, but lets just keep the whole directory as it is to make things simpler to mount back in.
 
 Since **`nginx.conf`** is the _configuration_ file, let us open it up and take a look =>
 
@@ -149,7 +153,9 @@ Since **`nginx.conf`** is the _configuration_ file, let us open it up and take a
  }
 ```
 
-There are lots of parameters, directives which we can use to control /configure the `nginx` service with, such as the `user` the service runs as, the number of worker processes, format of the log string (`log-format`) etc. A good place to refer/learn about these sections is the official documentation [nginx-conf-doc](#http://nginx.org/en/docs/beginners_guide.html#conf_structure). The relevant part for us in this project is the **`include /etc/nginx/conf.d/*.conf`** declaration. Essentially, importing all the detailed configurations from **`*.conf`** files in the **`/etc/nginx/conf.d`** directory. 
+There are lots of parameters, directives which we can use to control /configure the `nginx` service with, such as the `user` the service runs as, the number of worker processes, format of the log string (`log-format`) etc. A good place to refer/learn about these sections is the official documentation [[nginx_conf_structure]](#1). 
+
+The relevant part for us in this project is the **`include /etc/nginx/conf.d/*.conf`** declaration. Essentially, importing all the detailed configurations from **`*.conf`** files in the **`/etc/nginx/conf.d`** directory. 
 
 Out of the box, this directory will just contain a **`default.conf`** file, and this is where we will do most of our work (_If we wish to separate out our configuration logic into a different file, that's possible as well_).
 
@@ -228,17 +234,15 @@ If we access `http://localhost:8080`from the browser now, we should get a nice l
 
 <img src="doc/nginx-web-custom.png" alt-text="Default NGINX web page" style="border: 2px solid"/>
 
-
-
-So we have managed to expose our own custom content as a web page from `Nginx`. We can now see how to add more dynamic functionality with some `JavaScript` code, taking advantage of `NGINX` extensible modular architecture.
+We have now managed to expose our own custom content as a web page from `Nginx`. Next we shall see how to add more dynamic functionality with some `JavaScript` code, taking advantage of `NGINX` extensible modular architecture.
 
 
 ### NGINX JavaScript (njs)
-The power of `Nginx` comes from its easy extensibility, using **Modules**. Using the `nginx.conf` load the **module/s** we need and we can start using the functions/capabilities it provides with the appropriate **directives**.
+The power of `Nginx` comes from its easy extensibility, using **Modules** [[nginx_modules]](#2). When we require a capability provided by some **module**, we can import that into the `nginx.conf` using the `load_module` **directive**, and when the process starts/reloads it will load the module and make its functionalities available. `NGINX` distributions come with some _default_ set of modules, and there are also _third party modules_ which we can download and install.  In extreme cases we can write our _own custom modules_ if required. For this project we shall use what is available by default with `NGINX` `Docker` image.
 
 Within the `config` directory we saw a `modules -> /usr/lib/nginx/modules` symlink. 
 
-If we look inside that we will be able to see the different extension modules available (out-of-the-box) with `Nginx`.
+If we look inside that we will be able to see the different extension **modules** available (out-of-the-box) with `Nginx`.
 
 ```bash
 $ docker run --rm -d --name=my-nginx nginx
@@ -908,6 +912,8 @@ Without getting too deep into the `Kubernetes` aspects, we can summarise the com
   ### References
   
   <a id="1">[1]</a> `NGINX` configuration documentation - http://nginx.org/en/docs/beginners_guide.html#conf_structure
+  
+  <a id="2">[2]</a> `NGINX` Modules - http://nginx.org/en/docs/dev/development_guide.html#Modules
   
   
   
